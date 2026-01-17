@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Modern Attendance Tracking System with Face Recognition and Geo-location">
+    <title>Attendance Tracker Pro</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Leaflet CSS for Maps -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+    
+    <!-- Chart.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+    
+    <!-- Face-api.js for Face Recognition -->
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/face-api.js/0.22.2/face-api.min.js"></script>
+    
+    <!-- Leaflet JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    
+    <!-- Main Stylesheet -->
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <!-- Loading Spinner -->
+    <div id="loading-overlay" class="loading-overlay">
+        <div class="spinner"></div>
+        <p>Loading...</p>
+    </div>
+
+    <!-- Navigation Bar -->
+    <nav class="navbar" role="navigation" aria-label="Main navigation">
+        <div class="nav-container">
+            <div class="nav-brand">
+                <i class="fas fa-clock"></i>
+                <span>AttendancePro</span>
+            </div>
+            
+            <button class="nav-toggle" aria-label="Toggle navigation" id="navToggle">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+            
+            <div class="nav-menu" id="navMenu">
+                <a href="#dashboard" class="nav-link active" data-page="dashboard">
+                    <i class="fas fa-home"></i> Dashboard
+                </a>
+                <a href="#attendance" class="nav-link" data-page="attendance">
+                    <i class="fas fa-user-check"></i> Attendance
+                </a>
+                <a href="#reports" class="nav-link" data-page="reports">
+                    <i class="fas fa-chart-bar"></i> Reports
+                </a>
+                <a href="#settings" class="nav-link" data-page="settings">
+                    <i class="fas fa-cog"></i> Settings
+                </a>
+                
+                <div class="nav-actions">
+                    <button class="theme-toggle" id="themeToggle" aria-label="Toggle dark mode">
+                        <i class="fas fa-moon"></i>
+                    </button>
+                    <button class="btn-logout" id="logoutBtn">
+                        <i class="fas fa-sign-out-alt"></i> Logout
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Container -->
+    <main class="main-container">
+        <!-- Login/Register Page -->
+        <section id="authPage" class="page active">
+            <div class="auth-container">
+                <div class="auth-card">
+                    <div class="auth-header">
+                        <h1>Welcome Back</h1>
+                        <p>Sign in to track your attendance</p>
+                    </div>
+                    
+                    <!-- Login Form -->
+                    <form id="loginForm" class="auth-form">
+                        <div class="form-group">
+                            <label for="loginEmail">
+                                <i class="fas fa-envelope"></i> Email Address
+                            </label>
+                            <input 
+                                type="email" 
+                                id="loginEmail" 
+                                placeholder="your.email@company.com"
+                                required
+                                aria-required="true"
+                            >
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="loginPassword">
+                                <i class="fas fa-lock"></i> Password
+                            </label>
+                            <div class="password-input">
+                                <input 
+                                    type="password" 
+                                    id="loginPassword" 
+                                    placeholder="Enter your password"
+                                    required
+                                    aria-required="true"
+                                >
+                                <button type="button" class="toggle-password" aria-label="Toggle password visibility">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-sign-in-alt"></i> Sign In
+                        </button>
+                    </form>
+                    
+                    <div class="auth-footer">
+                        <p>Don't have an account? 
+                            <a href="#" id="showRegister">Register here</a>
+                        </p>
+                    </div>
+                </div>
+                
+                <!-- Register Form (Hidden by default) -->
+                <div class="auth-card" id="registerCard" style="display: none;">
+                    <div class="auth-header">
+                        <h1>Create Account</h1>
+                        <p>Join our attendance system</p>
+                    </div>
+                    
+                    <form id="registerForm" class="auth-form">
+                        <div class="form-group">
+                            <label for="registerName">
+                                <i class="fas fa-user"></i> Full Name
+                            </label>
+                            <input 
+                                type="text" 
+                                id="registerName" 
+                                placeholder="John Doe"
+                                required
+                            >
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="registerEmail">
+                                <i class="fas fa-envelope"></i> Email Address
+                            </label>
+                            <input 
+                                type="email" 
+                                id="registerEmail" 
+                                placeholder="your.email@company.com"
+                                required
+                            >
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="registerPassword">
+                                <i class="fas fa-lock"></i> Password
+                            </label>
+                            <div class="password-input">
+                                <input 
+                                    type="password" 
+                                    id="registerPassword" 
+                                    placeholder="Min 6 characters"
+                                    required
+                                    minlength="6"
+                                >
+                                <button type="button" class="toggle-password">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
+                            <small class="form-hint">Password must be at least 6 characters</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="registerDepartment">
+                                <i class="fas fa-building"></i> Department
+                            </label>
+                            <select id="registerDepartment" required>
+                                <option value="">Select Department</option>
+                                <option value="Engineering">Engineering</option>
+                                <option value="Marketing">Marketing</option>
+                                <option value="Sales">Sales</option>
+                                <option value="HR">Human Resources</option>
+                                <option value="Finance">Finance</option>
+                            </select>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-user-plus"></i> Create Account
+                        </button>
+                    </form>
+                    
+                    <div class="auth-footer">
+                        <p>Already have an account? 
+                            <a href="#" id="showLogin">Sign in here</a>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Dashboard Page -->
+        <section id="dashboardPage" class="page">
+            <div class="page-header">
+                <h1><i class="fas fa-home"></i> Dashboard</h1>
+                <p class="page-subtitle">Welcome back, <span id="userName">User</span></p>
+            </div>
+            
+            <div class="dashboard-grid">
+                <!-- Status Cards -->
+                <div class="status-cards">
+                    <div class="status-card card-gradient-blue">
+                        <div class="card-icon">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                        <div class="card-content">
+                            <h3>Today's Status</h3>
+                            <p class="status-text" id="todayStatus">Not Checked In</p>
+                        </div>
+                    </div>
+                    
+                    <div class="status-card card-gradient-green">
+                        <div class="card-icon">
+                            <i class="fas fa-calendar-check"></i>
+                        </div>
+                        <div class="card-content">
+                            <h3>This Month</h3>
+                            <p class="status-text" id="monthlyAttendance">0 Days</p>
+                        </div>
+                    </div>
+                    
+                    <div class="status-card card-gradient-purple">
+                        <div class="card-icon">
+                            <i class="fas fa-business-time"></i>
+                        </div>
+                        <div class="card-content">
+                            <h3>Work Hours</h3>
+                            <p class="status-text" id="workHours">0h 0m</p>
+                        </div>
+                    </div>
+                    
+                    <div class="status-card card-gradient-orange">
+                        <div class="card-icon">
+                            <i class="fas fa-trophy"></i>
+                        </div>
+                        <div class="card-content">
+                            <h3>Attendance Rate</h3>
+                            <p class="status-text" id="attendanceRate">0%</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Recent Activity -->
+                <div class="dashboard-section">
+                    <h2>Recent Activity</h2>
+                    <div class="activity-list" id="activityList">
+                        <div class="empty-state">
+                            <i class="fas fa-inbox"></i>
+                            <p>No recent activity</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Attendance Chart -->
+                <div class="dashboard-section">
+                    <h2>Weekly Overview</h2>
+                    <div class="chart-container">
+                        <canvas id="weeklyChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Attendance Page -->
+        <section id="attendancePage" class="page">
+            <div class="page-header">
+                <h1><i class="fas fa-user-check"></i> Mark Attendance</h1>
+                <p class="page-subtitle">Check in or check out with location and photo verification</p>
+            </div>
+            
+            <div class="attendance-grid">
+                <!-- Attendance Actions -->
+                <div class="attendance-actions">
+                    <div class="current-time">
+                        <i class="fas fa-clock"></i>
+                        <span id="currentTime">--:--:--</span>
+                    </div>
+                    
+                    <div class="attendance-buttons">
+                        <button class="btn btn-success btn-large" id="timeInBtn">
+                            <i class="fas fa-sign-in-alt"></i>
+                            <span>Time In</span>
+                        </button>
+                        
+                        <button class="btn btn-danger btn-large" id="timeOutBtn" disabled>
+                            <i class="fas fa-sign-out-alt"></i>
+                            <span>Time Out</span>
+                        </button>
+                    </div>
+                    
+                    <div class="attendance-info" id="attendanceInfo">
+                        <p><i class="fas fa-info-circle"></i> Click Time In to start your day</p>
+                    </div>
+                </div>
+                
+                <!-- Location Map -->
+                <div class="map-container">
+                    <h3><i class="fas fa-map-marker-alt"></i> Your Location</h3>
+                    <div id="map" class="map"></div>
+                    <div class="location-info" id="locationInfo">
+                        <i class="fas fa-spinner fa-spin"></i> Loading location...
+                    </div>
+                </div>
+                
+                <!-- Camera Preview -->
+                <div class="camera-container">
+                    <h3><i class="fas fa-camera"></i> Photo Verification</h3>
+                    <video id="videoPreview" autoplay playsinline></video>
+                    <canvas id="photoCanvas" style="display:none;"></canvas>
+                    <div class="camera-overlay" id="cameraOverlay">
+                        <i class="fas fa-camera"></i>
+                        <p>Camera will activate when marking attendance</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Reports Page -->
+        <section id="reportsPage" class="page">
+            <div class="page-header">
+                <h1><i class="fas fa-chart-bar"></i> Reports & Analytics</h1>
+                <p class="page-subtitle">View your attendance history and statistics</p>
+            </div>
+            
+            <div class="reports-controls">
+                <div class="form-group">
+                    <label for="reportMonth">Select Month</label>
+                    <input type="month" id="reportMonth" class="form-control">
+                </div>
+                
+                <button class="btn btn-primary" id="generateReportBtn">
+                    <i class="fas fa-sync-alt"></i> Generate Report
+                </button>
+                
+                <button class="btn btn-secondary" id="exportCsvBtn">
+                    <i class="fas fa-download"></i> Export CSV
+                </button>
+            </div>
+            
+            <div class="reports-grid">
+                <div class="report-card">
+                    <h3>Attendance Summary</h3>
+                    <canvas id="attendancePieChart"></canvas>
+                </div>
+                
+                <div class="report-card">
+                    <h3>Monthly Trends</h3>
+                    <canvas id="monthlyTrendChart"></canvas>
+                </div>
+            </div>
+            
+            <div class="attendance-history">
+                <h2>Attendance History</h2>
+                <div class="table-responsive">
+                    <table class="data-table" id="historyTable">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Time In</th>
+                                <th>Time Out</th>
+                                <th>Work Hours</th>
+                                <th>Status</th>
+                                <th>Location</th>
+                            </tr>
+                        </thead>
+                        <tbody id="historyTableBody">
+                            <tr>
+                                <td colspan="6" class="empty-state">
+                                    <i class="fas fa-inbox"></i>
+                                    <p>No attendance records found</p>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Settings Page -->
+        <section id="settingsPage" class="page">
+            <div class="page-header">
+                <h1><i class="fas fa-cog"></i> Settings</h1>
+                <p class="page-subtitle">Manage your profile and preferences</p>
+            </div>
+            
+            <div class="settings-grid">
+                <div class="settings-section">
+                    <h2><i class="fas fa-user"></i> Profile Information</h2>
+                    <form id="profileForm" class="settings-form">
+                        <div class="form-group">
+                            <label for="profileName">Full Name</label>
+                            <input type="text" id="profileName" class="form-control">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="profileEmail">Email</label>
+                            <input type="email" id="profileEmail" class="form-control" readonly>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="profileDepartment">Department</label>
+                            <input type="text" id="profileDepartment" class="form-control" readonly>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Save Changes
+                        </button>
+                    </form>
+                </div>
+                
+                <div class="settings-section">
+                    <h2><i class="fas fa-map-marker-alt"></i> Office Location</h2>
+                    <div class="settings-form">
+                        <div class="form-group">
+                            <label>Current Office</label>
+                            <p class="settings-value" id="officeLocation">Main Office</p>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Geo-fence Radius</label>
+                            <p class="settings-value">100 meters</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="settings-section">
+                    <h2><i class="fas fa-bell"></i> Notifications</h2>
+                    <div class="settings-form">
+                        <div class="toggle-group">
+                            <label>
+                                <input type="checkbox" id="notifyCheckIn" checked>
+                                <span>Check-in Reminders</span>
+                            </label>
+                        </div>
+                        
+                        <div class="toggle-group">
+                            <label>
+                                <input type="checkbox" id="notifyCheckOut" checked>
+                                <span>Check-out Reminders</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="settings-section">
+                    <h2><i class="fas fa-shield-alt"></i> Security</h2>
+                    <div class="settings-form">
+                        <button class="btn btn-secondary" id="changeFaceBtn">
+                            <i class="fas fa-face-smile"></i> Update Face Recognition
+                        </button>
+                        
+                        <button class="btn btn-secondary" id="changePasswordBtn">
+                            <i class="fas fa-key"></i> Change Password
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Toast Notifications -->
+    <div id="toastContainer" class="toast-container" aria-live="polite" aria-atomic="true"></div>
+
+    <!-- Modal for Face Recognition -->
+    <div id="faceModal" class="modal" role="dialog" aria-labelledby="faceModalTitle" aria-hidden="true">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="faceModalTitle"><i class="fas fa-camera"></i> Face Verification</h2>
+                <button class="modal-close" aria-label="Close modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <video id="faceVideo" autoplay playsinline></video>
+                <canvas id="faceCanvas" style="display:none;"></canvas>
+                <div id="faceStatus" class="face-status">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <p>Position your face in the frame</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancelFaceBtn">Cancel</button>
+                <button class="btn btn-primary" id="captureFaceBtn">Capture</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- GDPR Cookie Notice -->
+    <div id="cookieNotice" class="cookie-notice">
+        <div class="cookie-content">
+            <p><i class="fas fa-cookie-bite"></i> We use cookies to enhance your experience. By continuing, you agree to our use of cookies.</p>
+            <button class="btn btn-small" id="acceptCookies">Accept</button>
+        </div>
+    </div>
+
+    <!-- Main JavaScript Files -->
+    <script src="js/config.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/storage.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/location.js"></script>
+    <script src="js/camera.js"></script>
+    <script src="js/attendance.js"></script>
+    <script src="js/dashboard.js"></script>
+    <script src="js/reports.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
