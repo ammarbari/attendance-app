@@ -1,337 +1,540 @@
 /**
- * ATTENDANCE TRACKER PRO - CONFIGURATION
+ * ATTENDANCE TRACKER PRO - ATTENDANCE MODULE
  * 
- * This file contains all configuration settings for the application.
- * Replace placeholder values with your actual API keys and settings.
+ * Handles attendance marking functionality:
+ * - Time In/Time Out
+ * - Location verification
+ * - Face verification
+ * - Offline support
  * 
- * SECURITY NOTE: Never commit actual API keys to version control.
- * Use environment variables in production.
+ * ERROR PREVENTION:
+ * - Validate user authentication
+ * - Check geo-fence before marking
+ * - Verify face recognition
+ * - Handle offline scenarios
+ * - Allow multiple Time Ins per day
  */
 
-const CONFIG = {
-  // ========== APPLICATION SETTINGS ==========
-  APP_NAME: 'Attendance Tracker Pro',
-  APP_VERSION: '1.0.0',
+const Attendance = {
   
-  // ========== FIREBASE AUTHENTICATION ==========
-  // Get these from Firebase Console: https://console.firebase.google.com
-  FIREBASE: {
-    apiKey: 'YOUR_FIREBASE_API_KEY',
-    authDomain: 'YOUR_PROJECT_ID.firebaseapp.com',
-    projectId: 'YOUR_PROJECT_ID',
-    storageBucket: 'YOUR_PROJECT_ID.appspot.com',
-    messagingSenderId: 'YOUR_MESSAGING_SENDER_ID',
-    appId: 'YOUR_APP_ID'
-  },
+  // Today's attendance record
+  todayRecord: null,
   
-  // ========== OFFICE LOCATION SETTINGS ==========
-  // Main office coordinates - Replace with your actual office location
-  OFFICE_LOCATION: {
-    latitude: 24.969478,    // Karachi, Pakistan (example)
-    longitude: 67.177018,
-    name: 'Main Office'
-  },
+  // Offline queue
+  offlineQueue: [],
   
-  // Geo-fence radius in meters (attendance only allowed within this radius)
-  GEO_FENCE_RADIUS: 1000,
-  
-  // Maximum distance to show on map (in meters)
-  MAX_MAP_DISTANCE: 5000,
-  
-  // ========== WORKING HOURS ==========
-  WORK_SCHEDULE: {
-    startTime: '09:00',      // Work start time (24-hour format)
-    endTime: '17:00',        // Work end time (24-hour format)
-    lateThreshold: 15,       // Minutes after start time to mark as late
-    earlyLeaveThreshold: 30  // Minutes before end time to mark as early leave
-  },
-  
-  // ========== FACE RECOGNITION SETTINGS ==========
-  FACE_API: {
-    // Models are loaded from CDN - these paths are relative to face-api.js CDN
-    modelsPath: 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/',
+  /**
+   * Initialize attendance module
+   */
+  init() {
+    this.setupEventListeners();
+    this.loadTodayAttendance();
+    this.startClock();
     
-    // Face detection options
-    detectionOptions: {
-      scoreThreshold: 0.5,        // Minimum confidence score (0-1)
-      inputSize: 512,             // Input size for face detection
-      maxFaces: 1                 // Only detect single face for attendance
-    },
-    
-    // Face matching threshold (lower = more strict)
-    matchThreshold: 0.6
-  },
-  
-  // ========== LOCATION SETTINGS ==========
-  LOCATION: {
-    // Geolocation API options
-    timeout: 10000,              // Timeout in milliseconds
-    maximumAge: 0,               // Don't use cached position
-    enableHighAccuracy: true,    // Use GPS if available
-    
-    // Map settings (using OpenStreetMap)
-    mapTileUrl: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-    mapAttribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-    defaultZoom: 16
-  },
-  
-  // ========== CAMERA SETTINGS ==========
-  CAMERA: {
-    video: {
-      width: { ideal: 1280 },
-      height: { ideal: 720 },
-      facingMode: 'user'  // 'user' for front camera, 'environment' for back
-    },
-    
-    // Photo quality for storage (0.0 - 1.0)
-    photoQuality: 0.8,
-    
-    // Photo format
-    photoFormat: 'image/jpeg'
-  },
-  
-  // ========== STORAGE SETTINGS ==========
-  STORAGE: {
-    // LocalStorage keys
-    keys: {
-      user: 'attendance_user',
-      token: 'attendance_token',
-      theme: 'attendance_theme',
-      attendance: 'attendance_records',
-      faceDescriptor: 'face_descriptor',
-      cookies: 'cookies_accepted'
-    },
-    
-    // IndexedDB settings (for offline support)
-    dbName: 'AttendanceDB',
-    dbVersion: 1,
-    storeName: 'attendance'
-  },
-  
-  // ========== API ENDPOINTS ==========
-  // If you have a backend server, configure these endpoints
-  API: {
-    baseUrl: 'http://localhost:3000/api',  // Change to your backend URL
-    endpoints: {
-      login: '/auth/login',
-      register: '/auth/register',
-      logout: '/auth/logout',
-      checkIn: '/attendance/checkin',
-      checkOut: '/attendance/checkout',
-      getAttendance: '/attendance/history',
-      getReports: '/reports',
-      updateProfile: '/user/profile'
-    },
-    
-    // Request timeout in milliseconds
-    timeout: 30000
-  },
-  
-  // ========== UI SETTINGS ==========
-  UI: {
-    // Toast notification duration (milliseconds)
-    toastDuration: 4000,
-    
-    // Animation durations (milliseconds)
-    animationDuration: 300,
-    
-    // Date format for display
-    dateFormat: 'DD/MM/YYYY',
-    
-    // Time format for display
-    timeFormat: 'HH:mm:ss',
-    
-    // Items per page for pagination
-    itemsPerPage: 10
-  },
-  
-  // ========== OFFLINE SUPPORT ==========
-  OFFLINE: {
-    enabled: true,
-    
-    // Sync interval when back online (milliseconds)
-    syncInterval: 30000,
-    
-    // Maximum retry attempts for sync
-    maxRetries: 3,
-    
-    // Retry delay (milliseconds)
-    retryDelay: 5000
-  },
-  
-  // ========== VALIDATION RULES ==========
-  VALIDATION: {
-    password: {
-      minLength: 6,
-      requireUppercase: false,
-      requireLowercase: false,
-      requireNumbers: false,
-      requireSpecialChars: false
-    },
-    
-    email: {
-      pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    },
-    
-    name: {
-      minLength: 2,
-      maxLength: 50
+    // Setup offline support
+    if (CONFIG.OFFLINE.enabled) {
+      this.setupOfflineSupport();
     }
   },
   
-  // ========== SECURITY SETTINGS ==========
-  SECURITY: {
-    // Token expiration time (hours)
-    tokenExpiration: 24,
+  /**
+   * Setup event listeners
+   */
+  setupEventListeners() {
+    // Time In button
+    const timeInBtn = document.getElementById('timeInBtn');
+    if (timeInBtn) {
+      timeInBtn.addEventListener('click', () => this.handleTimeIn());
+    }
     
-    // Enable CSRF protection
-    csrfProtection: true,
-    
-    // Maximum login attempts before lockout
-    maxLoginAttempts: 5,
-    
-    // Lockout duration (minutes)
-    lockoutDuration: 15
-  },
-  
-  // ========== REPORTS SETTINGS ==========
-  REPORTS: {
-    // Available report types
-    types: ['daily', 'weekly', 'monthly', 'custom'],
-    
-    // Export formats
-    exportFormats: ['csv', 'pdf', 'json'],
-    
-    // Chart colors
-    chartColors: {
-      present: '#10b981',
-      absent: '#ef4444',
-      late: '#f59e0b',
-      earlyLeave: '#8b5cf6',
-      halfDay: '#06b6d4'
+    // Time Out button
+    const timeOutBtn = document.getElementById('timeOutBtn');
+    if (timeOutBtn) {
+      timeOutBtn.addEventListener('click', () => this.handleTimeOut());
     }
   },
   
-  // ========== FEATURE FLAGS ==========
-  FEATURES: {
-    faceRecognition: true,
-    geolocation: true,
-    offlineMode: true,
-    notifications: true,
-    reports: true,
-    darkMode: true,
-    multiLanguage: false,
-    adminPanel: false
+  /**
+   * Start real-time clock
+   */
+  startClock() {
+    const updateClock = () => {
+      const currentTimeEl = document.getElementById('currentTime');
+      if (currentTimeEl) {
+        const now = new Date();
+        currentTimeEl.textContent = Utils.formatTime(now);
+      }
+    };
+    
+    updateClock();
+    setInterval(updateClock, 1000);
   },
   
-  // ========== ERROR MESSAGES ==========
-  ERRORS: {
-    // Authentication errors
-    invalidEmail: 'Please enter a valid email address',
-    invalidPassword: 'Password must be at least 6 characters',
-    emailExists: 'Email already registered',
-    invalidCredentials: 'Invalid email or password',
-    accountLocked: 'Account locked due to multiple failed attempts',
-    
-    // Location errors
-    locationDenied: 'Location access denied. Please enable location services.',
-    locationTimeout: 'Location request timed out. Please try again.',
-    locationUnavailable: 'Location unavailable. Please check your device settings.',
-    outsideGeofence: 'You are outside the office area. Please move closer to mark attendance.',
-    
-    // Camera errors
-    cameraNotFound: 'Camera not found. Please check camera permissions.',
-    cameraDenied: 'Camera access denied. Please enable camera permissions.',
-    cameraInUse: 'Camera is already in use by another application.',
-    
-    // Face recognition errors
-    noFaceDetected: 'No face detected. Please position your face clearly.',
-    multipleFaces: 'Multiple faces detected. Please ensure only one person is visible.',
-    faceNotMatched: 'Face verification failed. Please try again.',
-    poorLighting: 'Poor lighting conditions. Please move to better lighting.',
-    
-    // Network errors
-    networkError: 'Network error. Please check your internet connection.',
-    serverError: 'Server error. Please try again later.',
-    timeout: 'Request timeout. Please try again.',
-    
-    // General errors
-    unknownError: 'An unexpected error occurred. Please try again.',
-    invalidData: 'Invalid data provided.',
-    alreadyCheckedIn: 'You have already checked in today.',
-    notCheckedIn: 'You must check in before checking out.',
-    sessionExpired: 'Session expired. Please login again.'
+  /**
+   * Load today's attendance record
+   */
+  loadTodayAttendance() {
+    this.todayRecord = Storage.getTodayAttendance();
+    this.updateAttendanceUI();
   },
   
-  // ========== SUCCESS MESSAGES ==========
-  SUCCESS: {
-    loginSuccess: 'Login successful! Welcome back.',
-    registerSuccess: 'Registration successful! Please login.',
-    checkinSuccess: 'Checked in successfully!',
-    checkoutSuccess: 'Checked out successfully!',
-    profileUpdated: 'Profile updated successfully!',
-    faceUpdated: 'Face recognition updated successfully!',
-    passwordChanged: 'Password changed successfully!'
+  /**
+   * Update attendance UI based on current status
+   */
+  updateAttendanceUI() {
+    const timeInBtn = document.getElementById('timeInBtn');
+    const timeOutBtn = document.getElementById('timeOutBtn');
+    const attendanceInfo = document.getElementById('attendanceInfo');
+    
+    if (!timeInBtn || !timeOutBtn || !attendanceInfo) return;
+    
+    if (!this.todayRecord) {
+      timeInBtn.disabled = false;
+      timeOutBtn.disabled = true;
+      attendanceInfo.innerHTML = '<i class="fas fa-info-circle"></i> Click Time In to start your day';
+    } else if (this.todayRecord.timeIn && !this.todayRecord.timeOut) {
+      timeInBtn.disabled = false; // allow multiple Time Ins
+      timeOutBtn.disabled = false;
+      
+      const timeIn = new Date(this.todayRecord.timeIn);
+      attendanceInfo.innerHTML = `
+        <i class="fas fa-check-circle" style="color: var(--success-color);"></i> 
+        Checked in at ${Utils.formatTime(timeIn)}
+      `;
+    } else if (this.todayRecord.timeOut) {
+      timeInBtn.disabled = false; // still allow Time In after Time Out
+      timeOutBtn.disabled = false;
+      
+      const timeOut = new Date(this.todayRecord.timeOut);
+      attendanceInfo.innerHTML = `
+        <i class="fas fa-check-circle" style="color: var(--success-color);"></i> 
+        Last check out at ${Utils.formatTime(timeOut)}. You can Time In again.
+      `;
+    }
+  },
+  
+  /**
+   * Handle Time In
+   */
+  async handleTimeIn() {
+    try {
+      if (!Auth.isAuthenticated()) {
+        Utils.showToast('Please login first', 'error');
+        return;
+      }
+      
+      Utils.showLoading();
+      
+      // Validate location first
+      const locationValid = await this.validateLocation();
+      if (!locationValid) {
+        Utils.hideLoading();
+        return;
+      }
+      
+      const position = Location.getPosition();
+      
+      let faceVerified = false;
+      let photoData = null;
+      
+      // Handle face recognition if enabled
+      if (CONFIG.isFeatureEnabled('faceRecognition')) {
+        Utils.hideLoading();
+        
+        // Ensure models are loaded before starting camera
+        Utils.showToast('Preparing face recognition...', 'info');
+        const modelsReady = await Camera.ensureModelsLoaded();
+        
+        if (!modelsReady) {
+          Utils.showToast('Face recognition not available. Please try again.', 'error');
+          return;
+        }
+        
+        // Start camera
+        const cameraStarted = await Camera.startCamera('videoPreview');
+        
+        if (!cameraStarted) {
+          Utils.showToast('Failed to start camera', 'error');
+          return;
+        }
+        
+        // Wait for video stream to stabilize
+        Utils.showToast('Please position your face in the camera...', 'info');
+        await this.delay(2000);
+        
+        // Perform face verification
+        Utils.showLoading();
+        const faceResult = await Camera.performFaceVerification('videoPreview');
+        
+        if (!faceResult.success) {
+          Camera.stopCamera();
+          Utils.hideLoading();
+          
+          // If face not registered, offer to register
+          if (faceResult.requiresRegistration) {
+            const shouldRegister = confirm('No face registered. Would you like to register your face now?');
+            
+            if (!shouldRegister) {
+              Utils.showToast('Face registration required for attendance', 'error');
+              return;
+            }
+            
+            // Show face registration modal
+            const registered = await Camera.showFaceModal();
+            
+            if (!registered) {
+              Utils.showToast('Face registration cancelled', 'error');
+              return;
+            }
+            
+            // Retry face verification after registration
+            Utils.showToast('Face registered! Now verifying...', 'success');
+            await this.delay(1000);
+            
+            const cameraRestarted = await Camera.startCamera('videoPreview');
+            if (!cameraRestarted) {
+              Utils.showToast('Failed to restart camera', 'error');
+              return;
+            }
+            
+            await this.delay(2000);
+            Utils.showLoading();
+            
+            const retryResult = await Camera.performFaceVerification('videoPreview');
+            
+            if (!retryResult.success) {
+              Camera.stopCamera();
+              Utils.hideLoading();
+              Utils.showToast(retryResult.message, 'error');
+              return;
+            }
+            
+            faceVerified = true;
+          } else {
+            // Face verification failed for other reasons
+            Utils.showToast(faceResult.message, 'error');
+            return;
+          }
+        } else {
+          faceVerified = true;
+        }
+        
+        // Capture photo
+        photoData = Camera.capturePhoto('videoPreview', 'photoCanvas');
+        Camera.stopCamera();
+      }
+      
+      // Create attendance record
+      const now = new Date();
+      const timeString = Utils.formatTime(now);
+      const isLate = Utils.isLate(timeString, CONFIG.WORK_SCHEDULE.startTime, CONFIG.WORK_SCHEDULE.lateThreshold);
+      
+      const attendanceRecord = {
+        id: Utils.generateId(),
+        userId: Auth.getCurrentUser().id,
+        userName: Auth.getCurrentUser().name,
+        date: Utils.formatDate(now),
+        dateTime: now.toISOString(),
+        timeIn: now.toISOString(),
+        timeInFormatted: timeString,
+        timeOut: null,
+        location: {
+          latitude: position.latitude,
+          longitude: position.longitude,
+          accuracy: position.accuracy
+        },
+        photo: photoData,
+        faceVerified: faceVerified,
+        status: isLate ? 'late' : 'present',
+        synced: false
+      };
+      
+      // Save attendance record
+      const saved = Storage.saveAttendanceRecord(attendanceRecord);
+      
+      if (saved) {
+        this.todayRecord = attendanceRecord;
+        this.updateAttendanceUI();
+        
+        Utils.hideLoading();
+        Utils.showToast(CONFIG.getSuccess('checkinSuccess'), 'success');
+        
+        // Sync with backend if online
+        if (navigator.onLine) {
+          this.syncAttendance(attendanceRecord);
+        } else {
+          this.addToOfflineQueue(attendanceRecord);
+        }
+      } else {
+        Utils.hideLoading();
+        Utils.showToast('Failed to save attendance. Please try again.', 'error');
+      }
+      
+    } catch (error) {
+      Camera.stopCamera();
+      Utils.hideLoading();
+      console.error('Time In error:', error);
+      Utils.showToast(CONFIG.getError('unknownError'), 'error');
+    }
+  },
+  
+  /**
+   * Handle Time Out
+   */
+  async handleTimeOut() {
+    try {
+      if (!Auth.isAuthenticated()) {
+        Utils.showToast('Please login first', 'error');
+        return;
+      }
+      
+      if (!this.todayRecord || !this.todayRecord.timeIn) {
+        Utils.showToast(CONFIG.getError('notCheckedIn'), 'error');
+        return;
+      }
+      
+      Utils.showLoading();
+      
+      // Validate location
+      const locationValid = await this.validateLocation();
+      if (!locationValid) {
+        Utils.hideLoading();
+        return;
+      }
+      
+      const position = Location.getPosition();
+      let photoData = null;
+      
+      // Capture photo if face recognition enabled
+      if (CONFIG.isFeatureEnabled('faceRecognition')) {
+        const cameraStarted = await Camera.startCamera('videoPreview');
+        
+        if (cameraStarted) {
+          Utils.hideLoading();
+          Utils.showToast('Capturing checkout photo...', 'info');
+          await this.delay(1500);
+          
+          photoData = Camera.capturePhoto('videoPreview', 'photoCanvas');
+          Camera.stopCamera();
+          Utils.showLoading();
+        }
+      }
+      
+      // Calculate work duration
+      const now = new Date();
+      const timeString = Utils.formatTime(now);
+      const timeIn = new Date(this.todayRecord.timeIn);
+      const workDuration = Utils.calculateTimeDifference(timeIn, now);
+      const isEarlyLeave = this.isEarlyLeave(timeString);
+      
+      const updates = {
+        timeOut: now.toISOString(),
+        timeOutFormatted: timeString,
+        checkoutLocation: {
+          latitude: position.latitude,
+          longitude: position.longitude,
+          accuracy: position.accuracy
+        },
+        checkoutPhoto: photoData,
+        workHours: workDuration.hours,
+        workMinutes: workDuration.minutes,
+        totalWorkMinutes: workDuration.totalMinutes,
+        earlyLeave: isEarlyLeave,
+        synced: false
+      };
+      
+      if (isEarlyLeave && this.todayRecord.status === 'present') {
+        updates.status = 'early_leave';
+      }
+      
+      // Update attendance record
+      const updated = Storage.updateAttendanceRecord(this.todayRecord.id, updates);
+      
+      if (updated) {
+        this.todayRecord = { ...this.todayRecord, ...updates };
+        this.updateAttendanceUI();
+        
+        Utils.hideLoading();
+        Utils.showToast(CONFIG.getSuccess('checkoutSuccess'), 'success');
+        
+        // Sync with backend if online
+        if (navigator.onLine) {
+          this.syncAttendance(this.todayRecord);
+        } else {
+          this.addToOfflineQueue(this.todayRecord);
+        }
+      } else {
+        Utils.hideLoading();
+        Utils.showToast('Failed to update attendance. Please try again.', 'error');
+      }
+      
+    } catch (error) {
+      Camera.stopCamera();
+      Utils.hideLoading();
+      console.error('Time Out error:', error);
+      Utils.showToast(CONFIG.getError('unknownError'), 'error');
+    }
+  },
+  
+  /**
+   * Validate location
+   * @returns {Promise<boolean>}
+   */
+  async validateLocation() {
+    try {
+      const isValid = await Location.validateGeofence();
+      if (!isValid) {
+        Utils.showToast(CONFIG.getError('outsideGeofence'), 'error');
+        return false;
+      }
+      return true;
+    } catch (error) {
+      console.error('Location validation error:', error);
+      Utils.showToast('Failed to validate location. Please try again.', 'error');
+      return false;
+    }
+  },
+  
+  /**
+   * Check if checkout is early leave
+   * @param {string} timeString - Time string (HH:mm)
+   * @returns {boolean}
+   */
+  isEarlyLeave(timeString) {
+    const [hours, minutes] = timeString.split(':').map(Number);
+    const [endHours, endMinutes] = CONFIG.WORK_SCHEDULE.endTime.split(':').map(Number);
+    const totalMinutes = hours * 60 + minutes;
+    const endTotalMinutes = endHours * 60 + endMinutes;
+    return totalMinutes < (endTotalMinutes - CONFIG.WORK_SCHEDULE.earlyLeaveThreshold);
+  },
+  
+  /**
+   * Sync attendance with backend
+   * @param {object} record - Attendance record
+   */
+  async syncAttendance(record) {
+    try {
+      console.log('Syncing attendance:', record);
+      // TODO: Implement actual API call when backend is ready
+      Storage.updateAttendanceRecord(record.id, { synced: true });
+    } catch (error) {
+      console.error('Sync error:', error);
+      this.addToOfflineQueue(record);
+    }
+  },
+  
+  /**
+   * Add record to offline queue
+   * @param {object} record - Attendance record
+   */
+  addToOfflineQueue(record) {
+    this.offlineQueue.push(record);
+    console.log('Added to offline queue:', record);
+    Utils.showToast('Attendance saved offline. Will sync when online.', 'info');
+  },
+  
+  /**
+   * Setup offline support
+   */
+  setupOfflineSupport() {
+    window.addEventListener('online', () => this.syncOfflineQueue());
+    window.addEventListener('offline', () => Utils.showToast('You are offline.', 'info'));
+    
+    if (CONFIG.OFFLINE.enabled) {
+      setInterval(() => {
+        if (navigator.onLine && this.offlineQueue.length > 0) {
+          this.syncOfflineQueue();
+        }
+      }, CONFIG.OFFLINE.syncInterval);
+    }
+  },
+  
+  /**
+   * Sync offline queue
+   */
+  async syncOfflineQueue() {
+    if (this.offlineQueue.length === 0) return;
+    
+    const queue = [...this.offlineQueue];
+    this.offlineQueue = [];
+    
+    for (const record of queue) {
+      try {
+        await this.syncAttendance(record);
+      } catch (error) {
+        this.offlineQueue.push(record);
+      }
+    }
+    
+    if (this.offlineQueue.length === 0) {
+      Utils.showToast('All offline records synced successfully', 'success');
+    }
+  },
+  
+  /**
+   * Get attendance statistics
+   * @returns {object} Statistics
+   */
+  getStatistics() {
+    const records = Storage.getAttendanceRecords();
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1;
+    const currentYear = now.getFullYear();
+
+    // Filter records for current month
+    const monthlyRecords = records.filter(record => {
+      const recordDate = new Date(record.dateTime);
+      return recordDate.getMonth() + 1 === currentMonth &&
+             recordDate.getFullYear() === currentYear;
+    });
+
+    // Count unique dates
+    const uniqueDates = [...new Set(monthlyRecords.map(r => r.date))];
+    const totalDays = uniqueDates.length;
+
+    // Get the latest record per day for accurate stats
+    const latestRecordsByDate = uniqueDates.map(date => {
+      const dailyRecords = monthlyRecords.filter(r => r.date === date);
+      return dailyRecords[dailyRecords.length - 1]; // latest record (last Time Out)
+    });
+
+    const presentDays = latestRecordsByDate.filter(r => r.status === 'present').length;
+    const lateDays = latestRecordsByDate.filter(r => r.status === 'late').length;
+    const earlyLeaveDays = latestRecordsByDate.filter(r => r.earlyLeave).length;
+
+    // Total work time
+    let totalWorkMinutes = 0;
+    latestRecordsByDate.forEach(record => {
+      if (record.totalWorkMinutes) totalWorkMinutes += record.totalWorkMinutes;
+    });
+
+    const totalWorkHours = Math.floor(totalWorkMinutes / 60);
+    const remainingMinutes = totalWorkMinutes % 60;
+
+    return {
+      totalDays,
+      presentDays,
+      lateDays,
+      earlyLeaveDays,
+      totalWorkHours,
+      totalWorkMinutes: remainingMinutes,
+      attendanceRate: totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 0
+    };
+  },
+  
+  /**
+   * Delay utility
+   * @param {number} ms - Milliseconds
+   * @returns {Promise}
+   */
+  delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 };
 
-// ========== HELPER FUNCTIONS ==========
-
-/**
- * Get configuration value by path
- * @param {string} path - Dot notation path (e.g., 'FIREBASE.apiKey')
- * @returns {*} Configuration value
- */
-CONFIG.get = function(path) {
-  return path.split('.').reduce((obj, key) => obj?.[key], this);
-};
-
-/**
- * Check if a feature is enabled
- * @param {string} feature - Feature name
- * @returns {boolean} True if enabled
- */
-CONFIG.isFeatureEnabled = function(feature) {
-  return this.FEATURES[feature] === true;
-};
-
-/**
- * Get error message
- * @param {string} errorType - Error type key
- * @returns {string} Error message
- */
-CONFIG.getError = function(errorType) {
-  return this.ERRORS[errorType] || this.ERRORS.unknownError;
-};
-
-/**
- * Get success message
- * @param {string} successType - Success type key
- * @returns {string} Success message
- */
-CONFIG.getSuccess = function(successType) {
-  return this.SUCCESS[successType] || 'Operation successful!';
-};
-
-/**
- * Validate if required configurations are set
- * @returns {object} Validation result
- */
-CONFIG.validate = function() {
-  const missing = [];
-  
-  // Check Firebase config
-  if (this.FIREBASE.apiKey === 'YOUR_FIREBASE_API_KEY') {
-    missing.push('Firebase API Key');
-  }
-  
-  return {
-    isValid: missing.length === 0,
-    missing: missing
-  };
-};
-
-// Export for use in other modules
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = CONFIG;
+// Initialize attendance when DOM is ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => Attendance.init());
+} else {
+  Attendance.init();
 }
