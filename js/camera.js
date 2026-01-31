@@ -27,13 +27,16 @@ const Camera = {
   // Face descriptor for current user
   userFaceDescriptor: null,
   
+  // Model loading promise
+  modelLoadingPromise: null,
+  
   /**
    * Initialize camera module
    */
   async init() {
     // Load face-api models
     if (CONFIG.isFeatureEnabled('faceRecognition')) {
-      await this.loadFaceAPIModels();
+      this.modelLoadingPromise = this.loadFaceAPIModels();
     }
     
     // Load saved face descriptor
@@ -45,6 +48,10 @@ const Camera = {
    * @returns {Promise<boolean>} True if successful
    */
   async loadFaceAPIModels() {
+    if (this.modelsLoaded) {
+      return true;
+    }
+    
     try {
       console.log('Loading face-api.js models...');
       
@@ -75,6 +82,22 @@ const Camera = {
   },
   
   /**
+   * Ensure models are loaded
+   * @returns {Promise<boolean>}
+   */
+  async ensureModelsLoaded() {
+    if (this.modelsLoaded) {
+      return true;
+    }
+    
+    if (this.modelLoadingPromise) {
+      return await this.modelLoadingPromise;
+    }
+    
+    return await this.loadFaceAPIModels();
+  },
+  
+  /**
    * Start camera stream
    * @param {string} videoElementId - ID of video element
    * @returns {Promise<boolean>} True if successful
@@ -102,6 +125,14 @@ const Camera = {
       // Set stream to video element
       videoElement.srcObject = this.stream;
       
+      // Wait for video to be ready
+      await new Promise((resolve) => {
+        videoElement.onloadedmetadata = () => {
+          videoElement.play();
+          resolve();
+        };
+      });
+      
       // Hide camera overlay
       const overlay = document.getElementById('cameraOverlay');
       if (overlay) {
@@ -125,6 +156,15 @@ const Camera = {
     if (this.stream) {
       this.stream.getTracks().forEach(track => track.stop());
       this.stream = null;
+      
+      // Clear video elements
+      const videoElements = ['videoPreview', 'faceVideo'];
+      videoElements.forEach(id => {
+        const video = document.getElementById(id);
+        if (video) {
+          video.srcObject = null;
+        }
+      });
       
       // Show camera overlay
       const overlay = document.getElementById('cameraOverlay');
@@ -200,14 +240,23 @@ const Camera = {
    */
   async detectFace(videoElementId = 'videoPreview') {
     try {
-      if (!this.modelsLoaded) {
+      // Ensure models are loaded
+      const modelsReady = await this.ensureModelsLoaded();
+      if (!modelsReady) {
         console.warn('Face-api models not loaded');
+        Utils.showToast('Face recognition models not ready. Please try again.', 'warning');
         return null;
       }
       
       const video = document.getElementById(videoElementId);
       if (!video) {
         console.error('Video element not found');
+        return null;
+      }
+      
+      // Check if video is playing
+      if (video.paused || video.ended || !video.videoWidth) {
+        console.warn('Video not ready for face detection');
         return null;
       }
       
@@ -297,6 +346,15 @@ const Camera = {
         };
       }
       
+      // Ensure models are loaded
+      const modelsReady = await this.ensureModelsLoaded();
+      if (!modelsReady) {
+        return {
+          success: false,
+          message: 'Face recognition models not ready. Please try again.'
+        };
+      }
+      
       // Detect face
       const detections = await this.detectFace(videoElementId);
       
@@ -347,7 +405,7 @@ const Camera = {
    * @returns {Promise<boolean>} True if face captured successfully
    */
   async showFaceModal() {
-    return new Promise((resolve) => {
+    return new Promise(async (resolve) => {
       const modal = document.getElementById('faceModal');
       if (!modal) {
         console.error('Face modal not found');
@@ -355,14 +413,31 @@ const Camera = {
         return;
       }
       
-      // Show modal
+      // Ensure models are loaded first
+      const faceStatus = document.getElementById('faceStatus');
+      if (faceStatus) {
+        faceStatus.innerHTML = '<i class="fas fa-spinner fa-spin"></i><p>Loading face recognition models...</p>';
+      }
+      
       modal.classList.add('active');
       
+      const modelsReady = await this.ensureModelsLoaded();
+      if (!modelsReady) {
+        Utils.showToast('Failed to load face recognition models', 'error');
+        modal.classList.remove('active');
+        resolve(false);
+        return;
+      }
+      
       // Start camera
-      this.startCamera('faceVideo');
+      const cameraStarted = await this.startCamera('faceVideo');
+      if (!cameraStarted) {
+        modal.classList.remove('active');
+        resolve(false);
+        return;
+      }
       
       // Update status
-      const faceStatus = document.getElementById('faceStatus');
       if (faceStatus) {
         faceStatus.innerHTML = '<i class="fas fa-camera"></i><p>Position your face in the frame</p>';
       }
